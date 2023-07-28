@@ -25,46 +25,19 @@ def collect_sampled_trajectory(env, timesteps=1000):
     for t in range(timesteps):
         x = np.random.uniform(-0.011, 0.011)
         y = np.random.uniform(-0.011, 0.011)
-        z = np.random.uniform(-0.06, 0.26)
+        z = np.random.uniform(-0.06, 0.2)
         translation = np.array([x, y, z])
 
         theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
         theta_rad = np.deg2rad(theta_deg)  # convert to radians
         rotation = np.array([0, 0, theta_rad]) 
 
-        action = np.concatenate([translation, rotation]) - last_action
-
+        action = np.concatenate([translation, rotation, [0.0]]) - last_action
         env.step(action)
         env.render()
         
         last_action = action
         
-
-
-
-
-
-def collect_random_trajectory(env, timesteps=1000):
-    """Run a random policy to collect trajectories.
-
-    The rollout trajectory is saved to files in npz format.
-    Modify the DataCollectionWrapper wrapper to add new fields or change data formats.
-
-    Args:
-        env (MujocoEnv): environment instance to collect trajectories from
-        timesteps(int): how many environment timesteps to run for a given trajectory
-    """
-
-    env.reset()
-    dof = env.action_dim
-
-    for t in range(timesteps):
-        action = np.random.randn(dof)
-        env.step(action)
-        env.render()
-        if t % 100 == 0:
-            print(t)
-
 
 def playback_trajectory(env, ep_dir):
     """Playback data from an episode.
@@ -108,7 +81,7 @@ if __name__ == "__main__":
     # create original environment
     env = suite.make(
         args.environment,
-        controller_configs=load_controller_config(default_controller=args.controller),
+        controller_configs=load_controller_config(default_controller="OSC_POSE"),
         robots=args.robots,
         ignore_done=True,
         use_camera_obs=False,
@@ -128,7 +101,7 @@ if __name__ == "__main__":
 
     # collect some data
     print("Collecting some random data...")
-    collect_random_trajectory(env, timesteps=args.timesteps)
+    collect_sampled_trajectory(env, timesteps=args.timesteps)
 
     # playback some data
     _ = input("Press any key to begin the playback...")
