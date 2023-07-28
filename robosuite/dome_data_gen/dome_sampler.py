@@ -13,6 +13,35 @@ import numpy as np
 
 import robosuite as suite
 from robosuite.wrappers import DataCollectionWrapper
+from robosuite import load_controller_config
+
+
+
+def collect_sampled_trajectory(env, timesteps=1000):
+
+    env.reset()
+    last_action = np.zeros(env.action_dim)
+
+    for t in range(timesteps):
+        x = np.random.uniform(-0.011, 0.011)
+        y = np.random.uniform(-0.011, 0.011)
+        z = np.random.uniform(-0.06, 0.26)
+        translation = np.array([x, y, z])
+
+        theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
+        theta_rad = np.deg2rad(theta_deg)  # convert to radians
+        rotation = np.array([0, 0, theta_rad]) 
+
+        action = np.concatenate([translation, rotation]) - last_action
+
+        env.step(action)
+        env.render()
+        
+        last_action = action
+        
+
+
+
 
 
 def collect_random_trajectory(env, timesteps=1000):
@@ -79,6 +108,7 @@ if __name__ == "__main__":
     # create original environment
     env = suite.make(
         args.environment,
+        controller_configs=load_controller_config(default_controller=args.controller),
         robots=args.robots,
         ignore_done=True,
         use_camera_obs=False,
