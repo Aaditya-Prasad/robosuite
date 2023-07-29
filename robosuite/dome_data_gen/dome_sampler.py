@@ -25,11 +25,12 @@ def collect_sampled_trajectory(env, timesteps=1000):
 
     env.reset()
     env.render()
+    stiffness = np.array([1000, 1000, 1000, 100, 100, 0])
     last_action = np.zeros(env.action_dim)
     for i in range(30):
-        env.step(np.array([0, 0, -10, 0, 0, 0, 0]))
+        env.step(np.array([0, 0, -10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
         env.render()
-    env.step(np.array([0, 0, 10, 0, 0, 0, 0]))
+    env.step(np.array([0, 0, 10,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
     env.render()
     for t in range(timesteps):
         x = np.random.uniform(-0.011, 0.011)
@@ -40,7 +41,7 @@ def collect_sampled_trajectory(env, timesteps=1000):
         theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
         theta_rad = np.deg2rad(theta_deg)  # convert to radians
         rotation = np.array([0, 0, theta_rad]) 
-        action = np.concatenate([translation, rotation, [0.0]]) - last_action
+        action = np.concatenate([translation, rotation, stiffness, [0.0]]) - last_action
         for i in range(5):
             env.step(action)
             env.render()
@@ -146,11 +147,12 @@ if __name__ == "__main__":
     parser.add_argument("--timesteps", type=int, default=100)
     args = parser.parse_args()
 
-
+    cont = load_controller_config(default_controller="OSC_POSE")
+    cont['impedance_mode'] = "variable_kp"
     config = {
         "env_name": args.environment,
         "robots": args.robots,
-        "controller_configs": load_controller_config(default_controller="OSC_POSE"),
+        "controller_configs": cont,
     }
     # create original environment
     env = suite.make(
