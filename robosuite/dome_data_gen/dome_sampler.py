@@ -17,14 +17,19 @@ from robosuite import load_controller_config
 
 import datetime
 import h5py
+import json
 
 
 
 def collect_sampled_trajectory(env, timesteps=1000):
 
     env.reset()
+    env.render()
     last_action = np.zeros(env.action_dim)
-    env.step(np.array([0, 0, -1, 0, 0, 0, 0]))
+    for i in range(30):
+        env.step(np.array([0, 0, -10, 0, 0, 0, 0]))
+        env.render()
+    env.step(np.array([0, 0, 10, 0, 0, 0, 0]))
     env.render()
     for t in range(timesteps):
         x = np.random.uniform(-0.011, 0.011)
@@ -35,10 +40,10 @@ def collect_sampled_trajectory(env, timesteps=1000):
         theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
         theta_rad = np.deg2rad(theta_deg)  # convert to radians
         rotation = np.array([0, 0, theta_rad]) 
-
         action = np.concatenate([translation, rotation, [0.0]]) - last_action
-        env.step(action)
-        env.render()
+        for i in range(5):
+            env.step(action)
+            env.render()
         
         last_action = action
         
@@ -85,9 +90,9 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
         states = []
         actions = []
-
         for state_file in sorted(glob(state_paths)):
             dic = np.load(state_file, allow_pickle=True)
+            print(str(dic["env"]))
             env_name = str(dic["env"])
 
             states.extend(dic["states"])
@@ -123,6 +128,9 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     grp.attrs["date"] = "{}-{}-{}".format(now.month, now.day, now.year)
     grp.attrs["time"] = "{}:{}:{}".format(now.hour, now.minute, now.second)
     grp.attrs["repository_version"] = suite.__version__
+    print(env_name)
+    #print env name dtype
+    print(type(env_name))
     grp.attrs["env"] = env_name
     grp.attrs["env_info"] = env_info
 
@@ -134,21 +142,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--environment", type=str, default="Lift")
     parser.add_argument("--robots", nargs="+", type=str, default="Panda", help="Which robot(s) to use in the env")
-    parser.add_argument("--directory", type=str, default="/tmp/")
-    parser.add_argument("--timesteps", type=int, default=1000)
+    parser.add_argument("--directory", type=str, default="data/")
+    parser.add_argument("--timesteps", type=int, default=100)
     args = parser.parse_args()
 
+
+    config = {
+        "env_name": args.environment,
+        "robots": args.robots,
+        "controller_configs": load_controller_config(default_controller="OSC_POSE"),
+    }
     # create original environment
     env = suite.make(
-        args.environment,
-        controller_configs=load_controller_config(default_controller="OSC_POSE"),
-        robots=args.robots,
+        **config,
         ignore_done=True,
         use_camera_obs=False,
         has_renderer=True,
         has_offscreen_renderer=False,
         control_freq=20,
     )
+
+    env_info = json.dumps(config)
+
     data_directory = args.directory
 
     # wrap the environment with data collection wrapper
@@ -164,7 +179,6 @@ if __name__ == "__main__":
     collect_sampled_trajectory(env, timesteps=args.timesteps)
 
     # playback some data
-    _ = input("Press any key to begin the playback...")
-    print("Playing back the data...")
     data_directory = env.ep_directory
-    playback_trajectory(env, data_directory)
+    print(data_directory)
+    gather_demonstrations_as_hdf5("data/", "data/", env_info)
