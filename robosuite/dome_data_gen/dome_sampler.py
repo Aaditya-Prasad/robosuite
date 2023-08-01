@@ -35,7 +35,7 @@ def collect_sampled_trajectory(env, timesteps=1000):
     print("Robot in position")
     env.render()
     for t in range(timesteps):
-        x = np.random.uniform(-0.011, 0.011)
+        x = np.random.uniform(0, 0.011)
         y = np.random.uniform(-0.011, 0.011) 
         z = np.random.uniform(-0.06, 0.2)
         translation = np.array([x, y, z])
