@@ -25,24 +25,27 @@ def collect_sampled_trajectory(env, timesteps=1000):
 
     env.reset()
     env.render()
-    stiffness = np.array([1000, 1000, 1000, 100, 100, 0])
+    print("Robot start")
+    stiffness = np.array([10, 10, 10, 10, 10, 10])
     last_action = np.zeros(env.action_dim)
-    for i in range(30):
-        env.step(np.array([0, 0, -10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    for i in range(300):
+        env.step(np.array([1, 1, 1, 1, 1, 1, 0, 0, -10, 0, 0, 0, 1]))
         env.render()
-    env.step(np.array([0, 0, 10,  0, 0, 0, 0, 0, 0, 0, 0, 0, 0]))
+    env.step(np.array([1, 1, 1, 1, 1, 1, 0, 0, 10, 0, 0, 0, 1]))
+    print("Robot in position")
     env.render()
     for t in range(timesteps):
         x = np.random.uniform(-0.011, 0.011)
-        y = np.random.uniform(-0.011, 0.011)
+        y = np.random.uniform(-0.011, 0.011) 
         z = np.random.uniform(-0.06, 0.2)
         translation = np.array([x, y, z])
 
         theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
         theta_rad = np.deg2rad(theta_deg)  # convert to radians
         rotation = np.array([0, 0, theta_rad]) 
-        action = np.concatenate([translation, rotation, stiffness, [0.0]]) - last_action
-        for i in range(5):
+        action = np.concatenate([stiffness, translation, rotation, [1.0]]) - last_action
+        # action = np.concatenate([translation, rotation, [0.0]]) - last_action
+        for i in range(1):
             env.step(action)
             env.render()
         
