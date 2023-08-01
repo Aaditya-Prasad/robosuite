@@ -43,7 +43,7 @@ def collect_sampled_trajectory(env, timesteps=1000):
         theta_deg = np.random.uniform(-90, 90)  # sample rotation angle in degrees
         theta_rad = np.deg2rad(theta_deg)  # convert to radians
         rotation = np.array([0, 0, theta_rad]) 
-        action = np.concatenate([stiffness, translation, rotation, [1.0]]) - last_action
+        action = np.concatenate([stiffness, translation, rotation, [1.0]])
         # action = np.concatenate([translation, rotation, [0.0]]) - last_action
         for i in range(1):
             env.step(action)
@@ -96,7 +96,6 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
         actions = []
         for state_file in sorted(glob(state_paths)):
             dic = np.load(state_file, allow_pickle=True)
-            print(str(dic["env"]))
             env_name = str(dic["env"])
 
             states.extend(dic["states"])
@@ -132,9 +131,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     grp.attrs["date"] = "{}-{}-{}".format(now.month, now.day, now.year)
     grp.attrs["time"] = "{}:{}:{}".format(now.hour, now.minute, now.second)
     grp.attrs["repository_version"] = suite.__version__
-    print(env_name)
-    #print env name dtype
-    print(type(env_name))
+
     grp.attrs["env"] = env_name
     grp.attrs["env_info"] = env_info
 
