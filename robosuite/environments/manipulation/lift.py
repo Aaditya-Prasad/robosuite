@@ -297,7 +297,7 @@ class Lift(SingleArmEnv):
         self.cube = BoxObject(
             name="cube",
             size_min=[0.020, 0.020, 0.020],  # [0.015, 0.015, 0.015],
-            size_max=[0.022, 0.022, 0.022],  # [0.018, 0.018, 0.018])
+            size_max=[0.0201, 0.0201, 0.0201],  # [0.018, 0.018, 0.018])
             rgba=[1, 0, 0, 1],
             material=redwood,
         )
@@ -310,7 +310,7 @@ class Lift(SingleArmEnv):
             self.placement_initializer = UniformRandomSampler(
                 name="ObjectSampler",
                 mujoco_objects=self.cube,
-                x_range=[0.0, 0.0],
+                x_range=[-.09, -0.091],
                 y_range=[-0.0, 0.0],
                 rotation=None,
                 ensure_object_boundary_in_range=False,
