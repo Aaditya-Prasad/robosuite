@@ -19,7 +19,18 @@ import datetime
 import h5py
 import json
 
-
+def test(env):
+    env.reset()
+    env.render()
+    print("Testing")
+    stiffness = np.array([10, 10, 10, 10, 10, 10])
+    for i in range(300):
+        env.step(np.array([1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1]))
+        env.render()
+    print("Done turning")
+    for i in range(300):
+        env.step(np.array([1, 1, 1, 1, 1, 1, 10, 0, 0, 0, 0, 0, 1]))
+        env.render()
 
 def collect_sampled_trajectory(env, timesteps=1000):
 
@@ -178,6 +189,7 @@ if __name__ == "__main__":
 
     # collect some data
     print("Collecting some random data...")
+    # test(env)
     collect_sampled_trajectory(env, timesteps=args.timesteps)
 
     # playback some data
