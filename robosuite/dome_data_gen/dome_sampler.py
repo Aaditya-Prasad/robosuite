@@ -18,6 +18,7 @@ from robosuite import load_controller_config
 import datetime
 import h5py
 import json
+from robosuite.utils.transform_utils import quat2mat, euler2mat, get_orientation_error, mat2quat
 
 def test(env):
     env.reset()
@@ -61,7 +62,75 @@ def collect_sampled_trajectory(env, timesteps=1000):
             env.render()
         
         last_action = action
-        
+
+
+def calc_action(observation, target_pos, target_ori, scale = 10):
+    cur_ori = observation['robot0_eef_quat']
+    cur_pos = observation['robot0_eef_pos']
+    cur_mat = quat2mat(cur_ori)
+    cur_mat = cur_mat @ euler2mat(np.array([0, 0, -np.pi/2]))
+    
+    pos_dif = target_pos - cur_pos
+    rot_dif= np.matmul(cur_mat.T, get_orientation_error(target_ori, cur_ori))
+    action = np.hstack([pos_dif/scale, rot_dif, np.array([1])])  # last number is for the gripper
+    return action
+
+def check(observation, target_pos, target_ori, tolerance=0.02):
+    cur_ori = observation['robot0_eef_quat']
+    cur_pos = observation['robot0_eef_pos']
+    cur_mat = quat2mat(cur_ori)
+    cur_mat = cur_mat @ euler2mat(np.array([0, 0, -np.pi/2]))
+    
+    pos_dif = target_pos - cur_pos
+    rot_dif= np.matmul(cur_mat.T, get_orientation_error(target_ori, cur_ori))
+
+    if np.linalg.norm(pos_dif) < tolerance and np.linalg.norm(rot_dif) < tolerance:
+        return True
+    return False    
+
+def collect_ik_trajectory(env, timesteps=1000):
+        obs = env.reset()
+        print("CURR_ORI", obs['robot0_eef_quat'])
+        print("CURR_POS", obs['robot0_eef_pos'])
+        env.render()
+        print("Robot start")
+        while True:
+            action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
+            obs, _, _, _ = env.step(action)
+            env.render()
+            if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
+                print("Robot in position")
+                break
+        for t in range(timesteps):
+            x = np.random.uniform(0, 0.011)
+            y = np.random.uniform(-0.011, 0.011) 
+            z = np.random.uniform(0.02, 0.04)
+            translation = np.array([x, y, z])
+
+            theta_deg = np.random.uniform(-90, 90)
+            theta_rad = np.deg2rad(theta_deg)
+            rotation = np.array([0, 0, theta_rad])
+
+            desired_pos = obs['robot0_eef_pos'] + translation
+            desired_ori = mat2quat(quat2mat(obs['robot0_eef_quat']) @ euler2mat(rotation))
+            desired_ori[0] = 1.0
+            
+            print("DESIRED_ORI", np.round(desired_ori, 2), "DESIRED_POS", np.round(desired_pos, 2))
+            print("CURR_ORI", np.round(obs['robot0_eef_quat'], 2), "CURR_POS", np.round(obs['robot0_eef_pos'], 2))
+
+            i = 0
+            while True:
+                action = calc_action(obs, desired_pos, desired_ori, scale = 20)
+                obs, _, _, _ = env.step(action)
+                i += 1
+                env.render()
+                if i % 100 == 0:
+                    print("CURR_ORI", np.round(obs['robot0_eef_quat'], 2))
+                    print("CURR_POS", np.round(obs['robot0_eef_pos'], 2))
+                if check(obs, desired_pos, desired_ori):
+                    print("Robot reached position")
+                    break
+            
 
 def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
     """
@@ -156,10 +225,18 @@ if __name__ == "__main__":
     parser.add_argument("--robots", nargs="+", type=str, default="Panda", help="Which robot(s) to use in the env")
     parser.add_argument("--directory", type=str, default="data/")
     parser.add_argument("--timesteps", type=int, default=100)
+    parser.add_argument("-c", "--controller", type=str, default="OSC_POSE")
     args = parser.parse_args()
 
-    cont = load_controller_config(default_controller="OSC_POSE")
-    cont['impedance_mode'] = "variable_kp"
+    cont = None
+
+    if args.controller == "OSC_POSE":
+        cont = load_controller_config(default_controller="OSC_POSE")
+        cont['impedance_mode'] = "variable_kp"
+    
+    if args.controller == "IK_POSE":
+        cont = load_controller_config(default_controller="IK_POSE")
+
     config = {
         "env_name": args.environment,
         "robots": args.robots,
@@ -190,7 +267,10 @@ if __name__ == "__main__":
     # collect some data
     print("Collecting some random data...")
     # test(env)
-    collect_sampled_trajectory(env, timesteps=args.timesteps)
+    if args.controller == "IK_POSE":
+        collect_ik_trajectory(env, timesteps=args.timesteps)
+    else:
+        collect_sampled_trajectory(env, timesteps=args.timesteps)
 
     # playback some data
     data_directory = env.ep_directory
