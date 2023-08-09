@@ -88,19 +88,23 @@ def check(observation, target_pos, target_ori, tolerance=0.02):
         return True
     return False    
 
-def collect_ik_trajectory(env, timesteps=1000):
+def collect_ik_trajectory(env, timesteps=15):
         obs = env.reset()
         print("CURR_ORI", obs['robot0_eef_quat'])
         print("CURR_POS", obs['robot0_eef_pos'])
         env.render()
         print("Robot start")
+        step = 0
         while True:
             action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
             obs, _, _, _ = env.step(action)
             env.render()
+            step += 1
             if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
-                print("Robot in position")
+                print("Robot in position", step)
                 break
+        bottleneck_pos = obs['robot0_eef_pos']
+        bottleneck_ori = obs['robot0_eef_quat']
         for t in range(timesteps):
             x = np.random.uniform(0, 0.011)
             y = np.random.uniform(-0.011, 0.011) 
@@ -111,8 +115,8 @@ def collect_ik_trajectory(env, timesteps=1000):
             theta_rad = np.deg2rad(theta_deg)
             rotation = np.array([0, 0, theta_rad])
 
-            desired_pos = obs['robot0_eef_pos'] + translation
-            desired_ori = mat2quat(quat2mat(obs['robot0_eef_quat']) @ euler2mat(rotation))
+            desired_pos = bottleneck_pos + translation
+            desired_ori = mat2quat(quat2mat(bottleneck_ori) @ euler2mat(rotation))
             desired_ori[0] = 1.0
             
             print("DESIRED_ORI", np.round(desired_ori, 2), "DESIRED_POS", np.round(desired_pos, 2))
@@ -124,11 +128,12 @@ def collect_ik_trajectory(env, timesteps=1000):
                 obs, _, _, _ = env.step(action)
                 i += 1
                 env.render()
-                if i % 100 == 0:
+                if i % 100 == 0 and i > 0:
                     print("CURR_ORI", np.round(obs['robot0_eef_quat'], 2))
                     print("CURR_POS", np.round(obs['robot0_eef_pos'], 2))
                 if check(obs, desired_pos, desired_ori):
                     print("Robot reached position")
+                    t += i
                     break
             
 
@@ -224,7 +229,7 @@ if __name__ == "__main__":
     parser.add_argument("--environment", type=str, default="Lift")
     parser.add_argument("--robots", nargs="+", type=str, default="Panda", help="Which robot(s) to use in the env")
     parser.add_argument("--directory", type=str, default="data/")
-    parser.add_argument("--timesteps", type=int, default=100)
+    parser.add_argument("--timesteps", type=int, default=15)
     parser.add_argument("-c", "--controller", type=str, default="OSC_POSE")
     args = parser.parse_args()
 
