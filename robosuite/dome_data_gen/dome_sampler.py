@@ -88,32 +88,39 @@ def check(observation, target_pos, target_ori, tolerance=0.02):
         return True
     return False    
 
+def to_start_postion(obs, env, step):
+    while True:
+        action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
+        obs, _, _, _ = env.step(action)
+        step += 1
+        env.render()
+        if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
+            print("Robot in start position", step)
+            return step
+
 def collect_ik_trajectory(env, timesteps=15):
         obs = env.reset()
+        step = 0
+        f = open("data/data.txt", "w")
+        f.write("step,x,y,z,theta\n")
         print("CURR_ORI", obs['robot0_eef_quat'])
         print("CURR_POS", obs['robot0_eef_pos'])
         env.render()
         print("Robot start")
-        step = 0
-        while True:
-            action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
-            obs, _, _, _ = env.step(action)
-            env.render()
-            step += 1
-            if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
-                print("Robot in position", step)
-                break
+        step = to_start_postion(obs, env, step)
+
         bottleneck_pos = obs['robot0_eef_pos']
         bottleneck_ori = obs['robot0_eef_quat']
         for t in range(timesteps):
             x = np.random.uniform(0, 0.011)
             y = np.random.uniform(-0.011, 0.011) 
-            z = np.random.uniform(0.02, 0.04)
+            z = np.random.uniform(0.01, 0.03)
             translation = np.array([x, y, z])
 
             theta_deg = np.random.uniform(-90, 90)
             theta_rad = np.deg2rad(theta_deg)
             rotation = np.array([0, 0, theta_rad])
+            
 
             desired_pos = bottleneck_pos + translation
             desired_ori = mat2quat(quat2mat(bottleneck_ori) @ euler2mat(rotation))
@@ -122,19 +129,23 @@ def collect_ik_trajectory(env, timesteps=15):
             print("DESIRED_ORI", np.round(desired_ori, 2), "DESIRED_POS", np.round(desired_pos, 2))
             print("CURR_ORI", np.round(obs['robot0_eef_quat'], 2), "CURR_POS", np.round(obs['robot0_eef_pos'], 2))
 
-            i = 0
+            
             while True:
                 action = calc_action(obs, desired_pos, desired_ori, scale = 20)
                 obs, _, _, _ = env.step(action)
-                i += 1
+                step += 1
                 env.render()
-                if i % 100 == 0 and i > 0:
+                if step % 100 == 0:
                     print("CURR_ORI", np.round(obs['robot0_eef_quat'], 2))
                     print("CURR_POS", np.round(obs['robot0_eef_pos'], 2))
                 if check(obs, desired_pos, desired_ori):
-                    print("Robot reached position")
-                    t += i
+                    print("Robot reached desired position")
+                    f.write(str(step) + "," + str(x) + "," + str(y) + "," + str(z) + "," + str(theta_deg) + "\n")
                     break
+            if t % 5 == 0 and t != 0:
+                step = to_start_postion(obs, env, step)
+        
+        f.close()
             
 
 def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
