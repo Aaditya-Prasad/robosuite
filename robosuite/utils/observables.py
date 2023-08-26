@@ -380,7 +380,7 @@ class Observable:
             from robosuite.utils.log_utils import ROBOSUITE_DEFAULT_LOGGER
 
             ROBOSUITE_DEFAULT_LOGGER.error(e)
-            raise ValueError("Current sensor for observable {} is invalid.".format(self.name))
+            raise ValueError("Current sensor for observable {} is invalid.".format(self.name), e)
 
     @property
     def obs(self):

@@ -192,6 +192,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="keyboard")
     parser.add_argument("--pos-sensitivity", type=float, default=1.0, help="How much to scale position user inputs")
     parser.add_argument("--rot-sensitivity", type=float, default=1.0, help="How much to scale rotation user inputs")
+    parser.add_argument("-n", "--name", type=str, default="demo", help="Name of demonstration")
     args = parser.parse_args()
 
     # Get controller config
@@ -227,7 +228,7 @@ if __name__ == "__main__":
     env_info = json.dumps(config)
 
     # wrap the environment with data collection wrapper
-    tmp_directory = "/tmp/{}".format(str(time.time()).replace(".", "_"))
+    tmp_directory = "/tmp/{}".format(args.name)
     env = DataCollectionWrapper(env, tmp_directory)
 
     # initialize device

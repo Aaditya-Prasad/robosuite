@@ -47,10 +47,26 @@ def check(observation, target_pos, target_ori, tolerance=0.02):
     return False    
 
 def to_start_postion(obs, env, step):
-    while True:
+    for _ in range(60):
+        print(obs.keys())
         action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
         obs, _, _, _ = env.step(action)
         step += 1
+        env.render()
+        if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
+            print("Robot in start position", step)
+            return step
+        
+def pick_up(obs, env, step):
+    action = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+    env.step(action)
+    env.render()
+
+    while True:
+        action = calc_action(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]))
+
+
+        obs, _, _, _ = env.step(action)
         env.render()
         if check(obs, np.array([0.0, 0.0, .85]), np.array([1.0, 0.0, 0.0, 0.0]), tolerance=0.01):
             print("Robot in start position", step)
@@ -94,7 +110,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
 
     num_eps = 0
     env_name = None  # will get populated at some point
-
+    print(os.listdir(directory))
     for ep_directory in os.listdir(directory):
 
         state_paths = os.path.join(directory, ep_directory, "state_*.npz")
@@ -147,19 +163,12 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--environment", type=str, default="Lift")
     parser.add_argument("--directory", type=str, default="lift_data/")
-    parser.add_argument("-c", "--controller", type=str, default="IK_POSE")
+    parser.add_argument("--environment", type=str, default="Lift")
     args = parser.parse_args()
 
-    cont = None
 
-    if args.controller == "OSC_POSE":
-        cont = load_controller_config(default_controller="OSC_POSE")
-        cont['impedance_mode'] = "variable_kp"
-    
-    if args.controller == "IK_POSE":
-        cont = load_controller_config(default_controller="IK_POSE")
+    cont = load_controller_config(default_controller="IK_POSE")
 
     config = {
         "env_name": args.environment,
@@ -192,8 +201,6 @@ if __name__ == "__main__":
     print("Collecting some random data...")
     # test(env)
     to_start_postion(env.reset(), env, 0)
-
+    env.close()
     # playback some data
-    data_directory = env.ep_directory
-    print(data_directory)
-    gather_demonstrations_as_hdf5(args.directory, args.directory, env_info)
+    gather_demonstrations_as_hdf5(data_directory, data_directory, env_info)
