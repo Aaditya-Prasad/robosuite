@@ -45,9 +45,12 @@ def collect_sampled_trajectory(env, timesteps=1000):
     print("Robot start")
     stiffness = np.array([10, 10, 10, 10, 10, 10])
     des_ee_pos = np.array([0.2, -0.25, 1.15])
-    des_ee_euler = np.array([np.pi, 0.0, 0.0])
+    des_ee_euler = np.array([np.pi, 0.0, 0.5])
     des_ee_quat = mat2quat(euler2mat(des_ee_euler))
     des_grip_aa = ee_euler_to_gripper_axisangle(des_ee_euler)
+
+    ycount = 0
+    xcount = 0
 
     for i in range(50):
         # obs, _, _, _ = env.step(np.array([1, 1, 1, 1, 1, 1, 0, 0, -10, 0, 0, 0, 1]))
@@ -70,8 +73,16 @@ def collect_sampled_trajectory(env, timesteps=1000):
         y = np.random.uniform(-0.06, 0.06) - 0.25
         z = np.random.uniform(1.1, 1.15)
         des_ee_pos = np.array([x, y, z])
+
+        # if i % 2 == 0:
+        #     des_ee_pos = np.array([0.2, -0.25, 1.15])
+        #     des_ee_euler = np.array([np.pi, 0.0, 0.5])
+
+        # if i % 2 == 1:
+        #     des_ee_pos = np.array([0.2, -0.25, 1.15])
+        #     des_ee_euler = np.array([np.pi, 0.0, 0.5])
         
-        for _ in range(30):
+        for _ in range(75):
             obs, _, _, _ = env.step(np.concatenate([des_ee_pos, des_grip_aa, np.array([1.0])]))
 
             ee_pos = obs['robot0_eef_pos']
@@ -82,7 +93,15 @@ def collect_sampled_trajectory(env, timesteps=1000):
 
             env.render()
         print(f"reached position {i}")
-        print(f"obs['robot0_eef_euler'] = {ee_euler[1]}")
+        print(f"y ori = {ee_euler[1]}")
+        print(f"x ori = {ee_euler[0]}")
+        if np.abs(ee_euler[1]) > 0.01:
+            ycount += 1
+        if np.abs(ee_euler[0]-np.pi) > 0.01:
+            xcount += 1
+
+    print(f"ycount = {ycount}")
+    print(f"xcount = {xcount}")
 
 
 
