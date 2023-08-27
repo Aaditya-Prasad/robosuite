@@ -1,3 +1,6 @@
 MUJOCO_LOG.TXT
 data/
 lift_data/
+can_data/
+../models/assets/demonstrations/1692673745_720847/
+../scripts/door_demo/

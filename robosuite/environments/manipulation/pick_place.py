@@ -411,18 +411,18 @@ class PickPlace(SingleArmEnv):
         # can sample anywhere in bin
         bin_x_half = self.model.mujoco_arena.table_full_size[0] / 2 - 0.05
         bin_y_half = self.model.mujoco_arena.table_full_size[1] / 2 - 0.05
-
+        print("PLACEMENT RANGES", bin_x_half, bin_y_half)
         # each object should just be sampled in the bounds of the bin (with some tolerance)
         self.placement_initializer.append_sampler(
             sampler=UniformRandomSampler(
                 name="CollisionObjectSampler",
                 mujoco_objects=self.objects,
-                x_range=[-bin_x_half, bin_x_half],
-                y_range=[-bin_y_half, bin_y_half],
+                x_range=[-.0, .0],
+                y_range=[-.0, .0],
                 rotation=None,
                 rotation_axis="z",
-                ensure_object_boundary_in_range=True,
-                ensure_valid_placement=True,
+                ensure_object_boundary_in_range=False,
+                ensure_valid_placement=False,
                 reference_pos=self.bin1_pos,
                 z_offset=0.0,
             )
