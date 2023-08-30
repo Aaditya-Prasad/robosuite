@@ -9,14 +9,17 @@ import robosuite as suite
 from robosuite.wrappers import DataCollectionWrapper
 from robosuite import load_controller_config
 
+from PIL import Image
+
 import datetime
+import time
 import h5py
 import json
 from robosuite.utils.transform_utils import mat2euler, quat2mat, euler2mat, get_orientation_error, mat2quat, quat2axisangle
 
 
 
-def ee_euler_to_gripper_axisangle(des_euler: np.ndarray) -> np.ndarray:
+def ee_euler_to_gripper_axisangle(des_euler: np.ndarray, rotmat = False) -> np.ndarray:
     """Converts an euler angle for the end effector to axis angle orientation for the gripper.
 
     Returns:
@@ -32,77 +35,125 @@ def ee_euler_to_gripper_axisangle(des_euler: np.ndarray) -> np.ndarray:
     # Calculate the combined transformation matrix
     X_W_grip = X_W_ee @ X_ee_grip
 
-    # Convert the combined matrix to axis-angle representation
+    #just return the rotmatrix
+    if rotmat:
+        return X_W_grip
+    
+    #convert to axis angle
     grip_aa = quat2axisangle(mat2quat(X_W_grip))
 
     return grip_aa
 
+def get_e_r(cur_ee_quat, des_ee_quat) -> float:
+    # get current euler z (after zeroing out x and y)
+    cur_ee_euler = mat2euler(quat2mat(cur_ee_quat))
+    cur_ee_euler = np.array([0.0, 0.0, cur_ee_euler[-1]])
+    # get desired euler z (after zeroing out x and y)
+    des_ee_euler = mat2euler(quat2mat(des_ee_quat))
+    des_ee_euler = np.array([0.0, 0.0, des_ee_euler[-1]])
+    # get error in euler z; make sure to wrap it around correctly
+    e_r = des_ee_euler - cur_ee_euler
+    if e_r[-1] > np.pi:
+        e_r[-1] -= 2 * np.pi
+    elif e_r[-1] < -np.pi:
+        e_r[-1] += 2 * np.pi
+    return e_r
 
-def collect_sampled_trajectory(env, timesteps=1000):
+def get_dpos(cur_ee_pos, des_ee_pos) -> np.ndarray:
+    return des_ee_pos - cur_ee_pos
 
-    env.reset()
+
+
+def teleport(env, cur_ee_pos, des_ee_pos, delta_rot, dpos = None):
+    """
+    Teleports the robot to a specific position. 
+    Uses a delta rotation as well as either absolute current/desired pos or delta pos
+
+    Args: 
+        env: an instantiated env you want to change
+        cur_ee_pos: current ee pose from obs.
+        des_ee_pos: desired ee pose.
+        delta_rot: delta rotation in euler angles
+        dpos: delta position. If you pass this in, cur_ee_pos and des_ee_pos can be None, tp will just use dpos to move the robot
+    """
+    
+    if dpos is None:
+        dpos = get_dpos(cur_ee_pos, des_ee_pos)
+
+    drot = euler2mat(delta_rot)
+
+    
+    robot = env.robots[0]
+    controller = robot.controller
+    controller.converge_steps=100
+
+    jpos = controller.joint_positions_for_eef_command(dpos, drot, update_targets=True)
+    robot.set_robot_joint_positions(jpos)
+
+    observations = env._get_observations(force_update=True)
+
+    return observations
+
+
+def move_and_report(env, obs, des_ee_pos, delta_rot, dpos, steps=1):
+
+    for i in range(steps):
+        ee_pos = obs['robot0_eef_pos']
+        obs = teleport(env, ee_pos, des_ee_pos, delta_rot, dpos = dpos)
+
+    ee_pos = obs['robot0_eef_pos']
+    ee_quat = obs['robot0_eef_quat']
+    ee_euler = mat2euler(quat2mat(ee_quat))
+    print(ee_pos)
+    print(ee_euler)
     env.render()
-    print("Robot start")
-    stiffness = np.array([10, 10, 10, 10, 10, 10])
-    des_ee_pos = np.array([0.2, -0.25, 1.15])
-    des_ee_euler = np.array([np.pi, 0.0, 0.5])
-    des_ee_quat = mat2quat(euler2mat(des_ee_euler))
-    des_grip_aa = ee_euler_to_gripper_axisangle(des_ee_euler)
 
-    ycount = 0
-    xcount = 0
+    return obs
 
-    for i in range(50):
-        # obs, _, _, _ = env.step(np.array([1, 1, 1, 1, 1, 1, 0, 0, -10, 0, 0, 0, 1]))
-        obs, _, _, _ = env.step(np.concatenate([des_ee_pos, des_grip_aa, np.array([1.0])]))
 
+def collect_sampled_trajectory(env, dire, timesteps=1000):
+    np.set_printoptions(formatter={'float': lambda x: "{0:0.3f}".format(x)})
+    obs = env.reset()
+    env.render()
+
+    original_ee_pos = np.array([0.1, -0.25, 1.1])
+    ee_pos = obs['robot0_eef_pos']
+    ee_quat = obs['robot0_eef_quat']
+    ee_euler = mat2euler(quat2mat(ee_quat))
+
+    print("STARTING POSITION")
+    print(ee_pos)
+    print(ee_euler)
+
+    f = open(dire + "out.csv", "w")
+
+    obs = move_and_report(env, obs, original_ee_pos, delta_rot = np.array([0.0, 0.0, 0.0]), dpos = None, steps=3)
+    ## leaving this as a reminder that x and y rotation positions are swapped for some reason
+    # obs = move_and_report(env, obs, des_ee_pos, delta_rot = np.array([0.128, 0.0, 0.0]), dpos = None)
+    obs_image = obs["robot0_eye_in_hand_image"]
+    Image.fromarray(obs_image).save(dire + "images/0.png")
+    ee_pos = obs['robot0_eef_pos']
+    ee_quat = obs['robot0_eef_quat']
+    ee_euler = mat2euler(quat2mat(ee_quat))
+    f.write(str(0) + "," + str(ee_pos[0]) + "," + str(ee_pos[1]) + "," + str(ee_pos[2]) + "," + str(ee_quat[0]) + "," + str(ee_quat[1]) + "," + str(ee_quat[2]) + "," + str(ee_quat[3]) + "\n")
+    print("AT DEFAULT POSITION")
+
+    for i in range(timesteps):
+        x = np.random.uniform(-0.07, 0.02)
+        y = np.random.uniform(-0.07, 0.07)
+        z = np.random.uniform(-0.1, 0.1) 
+        des_ee_pos = np.array([x, y, z]) + original_ee_pos
+        obs = move_and_report(env, obs, des_ee_pos, delta_rot = np.array([0.0, 0.0, 0.0]), dpos = None)
+
+        obs_image = obs["robot0_eye_in_hand_image"]
         ee_pos = obs['robot0_eef_pos']
         ee_quat = obs['robot0_eef_quat']
         ee_euler = mat2euler(quat2mat(ee_quat))
+        Image.fromarray(obs_image).save(dire + f"images/{i+1}.png")
+        f.write(str(i+1) + "," + str(ee_pos[0]) + "," + str(ee_pos[1]) + "," + str(ee_pos[2]) + "," + str(ee_quat[0]) + "," + str(ee_quat[1]) + "," + str(ee_quat[2]) + "," + str(ee_quat[3])  + "\n")
 
 
-
-        env.render()
-
-    print(f"reached first position")
-
-    for i in range(timesteps):
-        #x should be +- .14 of 0.0
-        #y should be +- .14 of -0.35
-        x = np.random.uniform(-0.06, 0.06) + 0.2
-        y = np.random.uniform(-0.06, 0.06) - 0.25
-        z = np.random.uniform(1.1, 1.15)
-        des_ee_pos = np.array([x, y, z])
-
-        # if i % 2 == 0:
-        #     des_ee_pos = np.array([0.2, -0.25, 1.15])
-        #     des_ee_euler = np.array([np.pi, 0.0, 0.5])
-
-        # if i % 2 == 1:
-        #     des_ee_pos = np.array([0.2, -0.25, 1.15])
-        #     des_ee_euler = np.array([np.pi, 0.0, 0.5])
-        
-        for _ in range(75):
-            obs, _, _, _ = env.step(np.concatenate([des_ee_pos, des_grip_aa, np.array([1.0])]))
-
-            ee_pos = obs['robot0_eef_pos']
-            ee_quat = obs['robot0_eef_quat']
-            ee_euler = mat2euler(quat2mat(ee_quat))
-
-
-
-            env.render()
-        print(f"reached position {i}")
-        print(f"y ori = {ee_euler[1]}")
-        print(f"x ori = {ee_euler[0]}")
-        if np.abs(ee_euler[1]) > 0.01:
-            ycount += 1
-        if np.abs(ee_euler[0]-np.pi) > 0.01:
-            xcount += 1
-
-    print(f"ycount = {ycount}")
-    print(f"xcount = {xcount}")
-
+    f.close()
 
 
 
@@ -201,7 +252,7 @@ if __name__ == "__main__":
     parser.add_argument("--robots", nargs="+", type=str, default="Panda", help="Which robot(s) to use in the env")
     parser.add_argument("--directory", type=str, default="can_data/")
     parser.add_argument("-t", "--timesteps", type=int, default=15)
-    parser.add_argument("-c", "--controller", type=str, default="OSC_POSE")
+    parser.add_argument("-c", "--controller", type=str, default="IK_POSE")
     args = parser.parse_args()
 
     cont = None
@@ -212,7 +263,7 @@ if __name__ == "__main__":
         cont['control_delta'] = False
     
     if args.controller == "IK_POSE":
-        raise NotImplementedError("IK_POSE not implemented yet")
+        cont = load_controller_config(default_controller="IK_POSE")
 
     config = {
         "env_name": args.environment,
@@ -223,9 +274,12 @@ if __name__ == "__main__":
     env = suite.make(
         **config,
         ignore_done=True,
-        use_camera_obs=False,
+        use_camera_obs=True,
         has_renderer=True,
-        has_offscreen_renderer=False,
+        has_offscreen_renderer=True,
+        camera_names="robot0_eye_in_hand",
+        camera_heights=128,
+        camera_widths=128,
         control_freq=20,
     )
 
@@ -233,8 +287,7 @@ if __name__ == "__main__":
 
     data_directory = args.directory
 
-    # wrap the environment with data collection wrapper
-    env = DataCollectionWrapper(env, data_directory)
+
 
     # testing to make sure multiple env.reset calls don't create multiple directories
     env.reset()
@@ -244,9 +297,4 @@ if __name__ == "__main__":
     # collect some data
     print("Collecting some random data...")
 
-    collect_sampled_trajectory(env, timesteps=args.timesteps)
-
-    # playback some data
-    data_directory = env.ep_directory
-    print(data_directory)
-    gather_demonstrations_as_hdf5("can_data/", "can_data/", env_info)
+    collect_sampled_trajectory(env, data_directory, timesteps=args.timesteps)

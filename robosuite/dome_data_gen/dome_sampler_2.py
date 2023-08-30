@@ -231,6 +231,7 @@ def gather_demonstrations_as_hdf5(directory, out_dir, env_info):
 
     f.close()
 
+import time
 
 if __name__ == "__main__":
 
@@ -239,7 +240,7 @@ if __name__ == "__main__":
     parser.add_argument("--robots", nargs="+", type=str, default="Panda", help="Which robot(s) to use in the env")
     parser.add_argument("--directory", type=str, default="data/")
     parser.add_argument("-t", "--timesteps", type=int, default=15)
-    parser.add_argument("-c", "--controller", type=str, default="OSC_POSE")
+    parser.add_argument("-c", "--controller", type=str, default="IK_POSE")
     args = parser.parse_args()
 
     cont = None
@@ -251,7 +252,7 @@ if __name__ == "__main__":
         cont['control_delta'] = False
     
     if args.controller == "IK_POSE":
-        raise NotImplementedError("IK_POSE not implemented yet")
+        cont = load_controller_config(default_controller="IK_POSE")
 
     config = {
         "env_name": args.environment,
@@ -266,6 +267,12 @@ if __name__ == "__main__":
         has_renderer=True,
         has_offscreen_renderer=False,
         control_freq=20,
+        robot_eef_init_randomization = True,
+        ##these should all be 3-tuples
+        robot_eef_pos_min = [-0.5, 0.1, 0.0],
+        robot_eef_pos_max = [-0.5, 0.1, 0.0],
+        robot_eef_rot_min = [0.0, np.pi/3, 0.0],
+        robot_eef_rot_max = [0.0, np.pi/3, 0.0],
     )
 
     env_info = json.dumps(config)
@@ -282,7 +289,8 @@ if __name__ == "__main__":
 
     # collect some data
     print("Collecting some random data...")
-
+    env.render()
+    time.sleep(100)
     collect_sampled_trajectory(env, timesteps=args.timesteps)
 
     # playback some data
